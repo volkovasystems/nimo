@@ -42,6 +42,9 @@
 	@end-module-configuration
 
 	@module-documentation:
+		Views are the layout of what the user will see on the webpage.
+
+
 	@end-module-documentation
 
 	@include:
@@ -57,6 +60,14 @@ if( typeof window != "undefined" &&
 	throw new Error( "harden is not defined" );
 }
 
+/*:
+	@option:
+		{
+			"name:required": "string",
+			"level": "number"
+		}
+	@end-option
+*/
 var nimo = function nimo( option ){
 	/*:
 		@meta-configuration:
@@ -91,19 +102,26 @@ var nimo = function nimo( option ){
 	}
 
 	var view = document.createElement( "section" );
+	view.classList.add( "view" );
 
 	view.setAttribute( "name", name );
 	view.classList.add( name );
 
 	nimo.data.index = nimo.data.index || 0;
-	view.setAttribute( "index", nimo.data.index );
-	nimo.view[ nimo.data.index ] = view;
+	var index = nimo.data.index;
+	view.setAttribute( "index", index );
+	harden( index, view, nimo.view );
 	nimo.data.index++;
+
+	var level = option.level || index || 0;
+	view.setAttribute( "level", level );
+	view.style.zIndex = level;
 
 	view.setAttribute( "style", [
 		"display: flex;",
+		"flex-direction: row;",
 
-		"position: absolute",
+		"position: absolute;",
 
 		"width: 100vw;",
 		"height: 100vh;",
@@ -118,7 +136,7 @@ var nimo = function nimo( option ){
 
 	nimo.body.appendChild( view );
 
-	nimo.view[ name ] = view;
+	harden( name, view, nimo.view );
 
 	return view;
 };
@@ -134,7 +152,10 @@ harden( "boot",
 	function boot( ){
 		document.querySelector( "html" )
 			.setAttribute( "style", [
-				"position: absolute",
+				"display: flex;",
+				"flex-direction: row;",
+
+				"position: absolute;",
 				"top: 0px;",
 				"left: 0px",
 
@@ -149,9 +170,12 @@ harden( "boot",
 
 		harden( "body", document.querySelector( "body" ), nimo );
 		nimo.body.setAttribute( "style", [
-			"position: absolute",
+			"display: flex;",
+			"flex-direction: row;",
+
+			"position: absolute;",
 			"top: 0px;",
-			"left: 0px",
+			"left: 0px;",
 
 			"width: 100vw;",
 			"height: 100vh;",
@@ -162,25 +186,66 @@ harden( "boot",
 			"float: none;"
 		].join( " " ) );
 
-		var style = document.createElement( "style" );
-		style.appendChild( document.createTextNode( "" ) );
-		document.head.appendChild( style );
-		harden( "sheet", style.sheet, nimo );
+		if( !document.querySelector( "style.root" ) ){
+			var style = document.createElement( "style" );
 
-		nimo.sheet.insertRule( ".hidden" + JSON.stringify( {
-			"display": "none !important",
-			"width": "0px !important",
-			"height": "0px !important",
-			"opacity": "hidden !important"
-		} )
-		.replace( /\,/g, ";" )
-		.replace( /\"/g, "" ), 0 );
+			style.setAttribute( "name", "root" );
+			style.classList.add( "root" );
+			style.appendChild( document.createTextNode( "" ) );
+			document.head.appendChild( style );
+
+			harden( "sheet", style.sheet, nimo );
+
+		}else{
+			var sheet = document.querySelector( "style.root" ).sheet;
+			if( sheet ){
+				harden( "sheet", sheet, nimo );
+
+			}else{
+				throw new Error( "cannot find root style" );
+			}
+		}
+
+		try{
+			nimo.sheet.insertRule( ".hidden" + JSON.stringify( {
+				"display": "none !important",
+				"width": "0px !important",
+				"height": "0px !important",
+				"opacity": "hidden !important"
+			} )
+			.replace( /\,/g, ";" )
+			.replace( /\"/g, "" ), 0 );
+
+			nimo.sheet.insertRule( "section.view" + JSON.stringify( {
+				"display": "flex !important",
+				"flex-direction": "row !important",
+
+				"position": "absolute !important",
+
+				"border": "0 !important",
+				"padding": "0px !important",
+				"margin": "0px !important",
+
+				"float": "none !important"
+			} )
+			.replace( /\,/g, ";" )
+			.replace( /\"/g, "" ), 0 );
+
+		}catch( error ){
+			console.debug( "unexpected error when inserting rule", error );
+		}
 
 		harden( "BOOTED", "booted", nimo );
+
+		return nimo;
 	}, nimo );
 
 harden( "show",
 	function show( name ){
+		if( !name ){
+			throw new Error( "name not specified" );
+		}
+
 		if( name in nimo.view ){
 			var index = 0;
 			while( nimo.view[ index ] ){
@@ -188,19 +253,49 @@ harden( "show",
 				index++;
 			}
 
-			nimo.view[ name ].classList.remove( "hidden" );
+			var view = nimo.view[ name ];
+			view.classList.remove( "hidden" );
+
+			var level = parseInt( view.getAttribute( "level" ) );
+			view.style.zIndex = level;
 
 		}else{
 			console.debug( "cannot find view", name );
 		}
+
+		return nimo;
 	}, nimo );
 
 harden( "hide",
 	function hide( name ){
+		if( !name ){
+			throw new Error( "name not specified" );
+		}
+
 		if( name in nimo.view ){
 			nimo.view[ name ].classList.add( "hidden" );
 
 		}else{
 			console.debug( "cannot find view", name );
 		}
+
+		return nimo;
+	}, nimo );
+
+harden( "cascade",
+	function cascade( ){
+		Object.getOwnPropertyNames( nimo.view )
+			.filter( function onEachKey( key ){
+				return ( /^\d+$/ ).test( key.toString( ) );
+			} )
+			.forEach( function onEachIndex( index ){
+				index = parseInt( index );
+
+				var view = nimo.view[ index ];
+
+				view.style.zIndex = index;
+				view.setAttribute( "level", index );
+			} );
+
+		return nimo;
 	}, nimo );
