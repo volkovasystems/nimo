@@ -60,10 +60,14 @@ if( typeof window != "undefined" &&
 	throw new Error( "harden is not defined" );
 }
 
+harden( "MAXIMUM_VIEW_LEVEL", 2147483647 );
+harden( "MAXIMUM_VIEW_INDEX", 2147483647 );
+
 /*:
 	@option:
 		{
 			"name:required": "string",
+			"index": "number",
 			"level": "number"
 		}
 	@end-option
@@ -84,13 +88,14 @@ var nimo = function nimo( option ){
 		throw new Error( "nimo is not loaded properly" );
 	}
 
-	if( typeof option == "string" &&
-		option in nimo.view )
+	var parameter = arguments[ 0 ];
+	if( typeof parameter == "string" &&
+		parameter in nimo.view )
 	{
-		return nimo.view[ option ];
+		return nimo.view[ parameter ];
 
-	}else if( typeof option == "string" ){
-		option = { "name": option };
+	}else if( typeof parameter == "string" ){
+		option = { "name": parameter };
 
 	}else{
 		option = option || { };
@@ -108,12 +113,18 @@ var nimo = function nimo( option ){
 	view.classList.add( name );
 
 	nimo.data.index = nimo.data.index || 0;
-	var index = nimo.data.index;
+	var index = option.index || nimo.data.index;
+	if( index > MAXIMUM_VIEW_INDEX ){
+		throw new Error( "maximum view index" );
+	}
 	view.setAttribute( "index", index );
 	harden( index, view, nimo.view );
 	nimo.data.index++;
 
 	var level = option.level || index || 0;
+	if( level > MAXIMUM_VIEW_LEVEL ){
+		throw new Error( "maximum view level" );
+	}
 	view.setAttribute( "level", level );
 	view.style.zIndex = level;
 
@@ -129,7 +140,10 @@ var nimo = function nimo( option ){
 		"border: 0;",
 		"padding: 0px;",
 		"margin: 0px;",
-		"float: none;"
+
+		"float: none;",
+
+		"pointer-events: none;"
 	].join( " " ) );
 
 	view.classList.add( "hidden" );
@@ -165,7 +179,10 @@ harden( "boot",
 				"border: 0;",
 				"padding: 0px;",
 				"margin: 0px;",
-				"float: none;"
+
+				"float: none;",
+
+				"pointer-events: none;"
 			].join( " " ) );
 
 		harden( "body", document.querySelector( "body" ), nimo );
@@ -183,7 +200,10 @@ harden( "boot",
 			"border: 0;",
 			"padding: 0px;",
 			"margin: 0px;",
-			"float: none;"
+
+			"float: none;",
+
+			"pointer-events: none;"
 		].join( " " ) );
 
 		if( !document.querySelector( "style.root" ) ){
@@ -211,7 +231,8 @@ harden( "boot",
 				"display": "none !important",
 				"width": "0px !important",
 				"height": "0px !important",
-				"opacity": "hidden !important"
+				"opacity": "hidden !important",
+				"pointer-events": "none !important"
 			} )
 			.replace( /\,/g, ";" )
 			.replace( /\"/g, "" ), 0 );
@@ -226,7 +247,15 @@ harden( "boot",
 				"padding": "0px !important",
 				"margin": "0px !important",
 
-				"float": "none !important"
+				"float": "none !important",
+
+				"pointer-events": "none !important"
+			} )
+			.replace( /\,/g, ";" )
+			.replace( /\"/g, "" ), 0 );
+
+			nimo.sheet.insertRule( "section.view.root" + JSON.stringify( {
+				"z-index": "2147483647 !important"
 			} )
 			.replace( /\,/g, ";" )
 			.replace( /\"/g, "" ), 0 );
@@ -236,6 +265,13 @@ harden( "boot",
 		}
 
 		harden( "BOOTED", "booted", nimo );
+
+		//: Create an initial root view.
+		nimo( {
+			"name": "root",
+			"index": MAXIMUM_VIEW_INDEX,
+			"level": MAXIMUM_VIEW_LEVEL
+		} );
 
 		return nimo;
 	}, nimo );
@@ -247,11 +283,17 @@ harden( "show",
 		}
 
 		if( name in nimo.view ){
-			var index = 0;
-			while( nimo.view[ index ] ){
-				nimo.view[ index ].classList.add( "hidden" );
-				index++;
-			}
+			Object.getOwnPropertyNames( nimo.view )
+				.filter( function onEachKey( key ){
+					return ( /^\d+$/ ).test( key.toString( ) );
+				} )
+				.forEach( function onEachIndex( index ){
+					index = parseInt( index );
+
+					var view = nimo.view[ index ];
+
+					view.classList.add( "hidden" );
+				} );
 
 			var view = nimo.view[ name ];
 			view.classList.remove( "hidden" );
@@ -293,8 +335,9 @@ harden( "cascade",
 
 				var view = nimo.view[ index ];
 
-				view.style.zIndex = index;
+				view.setAttribute( "index", index );
 				view.setAttribute( "level", index );
+				view.style.zIndex = index;
 			} );
 
 		return nimo;
